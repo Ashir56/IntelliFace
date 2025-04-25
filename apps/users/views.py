@@ -13,6 +13,11 @@ from apps.core.paginations import paginated_queryset_response
 
 # Create your views here.
 
+from django.shortcuts import render
+
+def index(request):
+    return render(request, 'users/index.html')
+
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
@@ -136,3 +141,4 @@ def teacher_by_id_api(request, user_id):
     if request.method == 'DELETE':
         teacher.delete()
         return Response({'msg': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
