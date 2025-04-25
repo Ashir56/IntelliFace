@@ -20,15 +20,6 @@ class UserManager(BaseUserManager):
             raise ValueError('The given email must be set.')
 
         email = self.normalize_email(email)
-        # if extra_fields['is_superuser']:
-        #     user = self.model(email=email, **extra_fields)
-        #     validate_password(password)
-        #     user.set_password(password)
-        #     user.username = email
-        #     user.is_active = True
-        #     user.save(using=self._db)
-        #     return user
-        # else:
         user = self.model(email=email, **extra_fields)
         validate_password(password)
         user.set_password(password)
@@ -80,6 +71,11 @@ class User(AbstractUser):
     is_active = models.BooleanField(default=True)
     is_teacher = models.BooleanField(default=False)
     is_student = models.BooleanField(default=False)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        editable=False,
+        null=True,
+        verbose_name=u'Created at')
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -92,3 +88,46 @@ class User(AbstractUser):
         This string is used when a `User` is printed in the console.
         """
         return self.email
+
+
+class Teacher(User):
+    department = models.CharField(max_length=100)
+    # courses_taught = models.ManyToManyField('Course', related_name='teachers')
+    joining_date = models.DateField()
+    specialization = models.CharField(max_length=255, null=True, blank=True)
+    qualification = models.CharField(max_length=255, null=True, blank=True)
+    salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    experience_years = models.PositiveIntegerField(default=0)
+    office_number = models.CharField(max_length=20, null=True, blank=True)
+    research_papers = models.TextField(null=True, blank=True)
+    availability_hours = models.CharField(max_length=100, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Teacher"
+        verbose_name_plural = "Teachers"
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.department})"
+
+
+class Student(User):
+    # courses_enrolled = models.ManyToManyField('Course', related_name='students')
+    batch_year = models.PositiveIntegerField()
+    grade_level = models.CharField(max_length=20, null=True, blank=True)
+    guardian_name = models.CharField(max_length=255, null=True, blank=True)
+    guardian_contact = models.CharField(max_length=20, null=True, blank=True)
+    gpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    attendance_percentage = models.FloatField(default=0.0)
+    extra_curricular = models.TextField(null=True, blank=True)
+    enrollment_status = models.CharField(
+        max_length=20,
+        choices=[('active', 'Active'), ('inactive', 'Inactive'), ('graduated', 'Graduated')],
+        default='active'
+    )
+
+    class Meta:
+        verbose_name = "Student"
+        verbose_name_plural = "Students"
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} (Batch {self.batch_year})"
