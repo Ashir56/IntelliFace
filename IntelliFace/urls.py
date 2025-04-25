@@ -21,3 +21,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.users.urls', namespace='users')),
 ]
+"""
+testing
+"""
