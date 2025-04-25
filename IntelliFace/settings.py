@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-u2zz+&d%v-vqytdv2hthycim$oo&x8t(pysrpr86d#9+2)!zes
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', '.vercel.app']
+ALLOWED_HOSTS = ['127.0.0.1']
 
 
 # Application definition
@@ -157,17 +157,6 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'intelliface',
-        'USER': 'macashir',
-        'PASSWORD': 'password',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
