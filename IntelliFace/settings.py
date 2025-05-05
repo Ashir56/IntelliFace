@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-u2zz+&d%v-vqytdv2hthycim$oo&x8t(pysrpr86d#9+2)!zes
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'intelliface-production.up.railway.app']
+ALLOWED_HOSTS = ['127.0.0.1', 'intelliface-production.up.railway.app', '*']
 
 
 CORS_ORIGIN_ALLOW_ALL = True
