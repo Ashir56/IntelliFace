@@ -51,16 +51,18 @@ class MyTokenRefreshSerializer(TokenRefreshSerializer):
         # Create new access token
         new_access_token = new_refresh.access_token
 
-        # Add custom claims
         new_access_token['username'] = user.username
+        # token['id'] = str(user.id)
         new_access_token['is_superuser'] = user.is_superuser
         new_access_token['is_staff'] = user.is_staff
         new_access_token['email'] = user.email
-        new_access_token['is_first_login'] = user.is_first_login
-        new_access_token['avatar'] = user.avatar.url if user.avatar else ''
+        # token['is_first_login'] = user.is_first_login
+        # token['avatar'] = user.avatar.url if user.avatar else ''
         new_access_token['is_active'] = user.is_active
         new_access_token['first_name'] = user.first_name
-        new_access_token['middle_name'] = user.middle_name
+        new_access_token['is_teacher'] = user.is_teacher
+        new_access_token['is_student'] = user.is_student
+        # token['middle_name'] = user.middle_name
         new_access_token['last_name'] = user.last_name
         new_access_token['phone_number'] = user.phone_number
 
