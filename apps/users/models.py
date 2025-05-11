@@ -95,12 +95,6 @@ class Teacher(User):
     # courses_taught = models.ManyToManyField('Course', related_name='teachers')
     joining_date = models.DateField()
     specialization = models.CharField(max_length=255, null=True, blank=True)
-    qualification = models.CharField(max_length=255, null=True, blank=True)
-    salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    experience_years = models.PositiveIntegerField(default=0)
-    office_number = models.CharField(max_length=20, null=True, blank=True)
-    research_papers = models.TextField(null=True, blank=True)
-    availability_hours = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         verbose_name = "Teacher"

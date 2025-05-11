@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="initial-scale=1, width=device-width" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body style="background: #FEFBF4; font-family: Poppins; padding: 1.5rem 0rem; ">
+    <div class='template-main-box' style="margin: 0rem 1.5rem; padding: .5rem; background: white;">
+        <table class="main-template-header" style="width: 100%; background-color: #F2F2F2; border-collapse: collapse;">
+            <tr>
+                <td style="text-align: center; padding: 3rem 0.2rem;">
+                    <div class='logo'>
+                        <img src="https://storage.googleapis.com/konav2-dev.appspot.com/Logo.png" alt="logo not found" />
+                    </div>
+                    <h1 style="color: #000; margin: 0; font-weight: 500; padding: 10px 0 0 0; font-size: 30px;">
+                        Welcome to the IntelliFace!</h1>
+                    <h4 style="font-size: 20px; font-weight: 400; margin: 0.4rem;">Congratulations <span
+                            style="color: #005B8C;">{{full_name_receiver}}</span></h4>
+                </td>
+            </tr>
+        </table>
+        <table class="template-body" style="width: 100%; padding: 1rem 3.5rem;">
+            <tr>
+                <td>
+                    <p style="font-size: 18px; line-height: 2rem; color: #000;"><strong>Your membership</strong>
+                        application has
+                        been approved. Just a few more steps to create your account:</p>
+                    <ol style="padding-left: 1rem !important">
+                        <li style="color: #000; font-size: 18px; margin-left: 0;">
+                            <a href={{ create_password_link }}
+                                style="color: #005B8C; text-decoration: none;">Click here</a> to create your
+                            password
+                            (Your email is your username)
+                        </li>
+                        <li style="color: #000; font-size: 18px; margin-left: 0;">
+                            Log in</li>
+                    </ol>
+                    <p style="font-size: 18px; line-height: 2rem; color: #000;">Thank You,<br>
+                        <strong style="color: #000;">IntelliFace</strong> <br>
+                    </p>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class='template-footer'
+        style="background: #fff; padding: 1rem 3.5rem; margin-top: 1rem; text-align: center; margin: 0.5rem 1.5rem;">
+        <p class="support-email" style="font-size: 18px; line-height: 2rem; color: #000;">Questions? Email us at <span
+               >
+                <a href="mailto:support@myethera.com"  style="color: #005B8C; text-decoration: none;">
+                    sp22-bse-026@cuilahore.edu.pk
+                </a>
+            </span></p>
+    </div>
+    <!-- Media Queries -->
+    <div style="display:none;">
+        <style>
+            @media (max-width: 600px) {
+                p,
+                li {
+                    font-size: 15px !important;
+                    line-height: 1.8rem !important;
+                }
+                .support-email {
+                    font-size: 12px !important;
+                }
+                .template-main-box {
+                    margin: 1rem !important;
+                }
+                .template-footer {
+                    margin: 1rem !important;
+                }
+                .main-template-header tr td h4 {
+                    font-size: 14px !important;
+                    font-weight: 400 !important;
+                }
+                .main-template-header tr td h1 {
+                    font-size: 22px !important;
+                    padding: 1rem 1.6rem 0rem 1.6rem !important;
+                }
+                .template-body {
+                    padding: 1rem 1rem !important;
+                }
+                .template-footer {
+                    padding: 1rem 0.7rem !important;
+                }
+            }
+            @media (max-width: 350px) {
+                p,
+                li {
+                    font-size: 11px !important;
+                    line-height: 1.5rem !important;
+                }
+                .support-email {
+                    font-size: 10px !important;
+                }
+                .template-footer {
+                    margin: .7rem !important;
+                }
+                .template-main-box {
+                    margin: .7rem !important;
+                }
+                .main-template-header tr td h4 {
+                    font-size: 11px !important;
+                    font-weight: 400 !important;
+                }
+                .main-template-header tr td h1 {
+                    font-size: 19px !important;
+                }
+                .template-body {
+                    padding: 1.5rem 1rem !important;
+                }
+                .template-footer {
+                    padding: .5rem !important;
+                }
+            }
+        </style>
+    </div>
+</body>
+</html>

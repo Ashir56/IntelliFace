@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import render, get_object_or_404
 from rest_framework import status
@@ -10,13 +12,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import User, Teacher, Student
 from apps.core.paginations import paginated_queryset_response
 
-
 # Create your views here.
 
 from django.shortcuts import render
 
+
 def index(request):
     return render(request, 'users/index.html')
+
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
@@ -76,12 +79,11 @@ def user_by_id_api(request, user_id):
             'last_name': user.last_name,
             'email': user.email,
         }
-        return Response (data, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
     if request.method == 'DELETE':
         user.delete()
         return Response({'msg': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-
 
 
 @api_view(['POST', 'GET'])
@@ -89,8 +91,12 @@ def user_by_id_api(request, user_id):
 @permission_classes([IsAdminUser])
 def teacher_api(request):
     if request.method == 'POST':
-        data = request.data
+        data = request.data.dict()
+        print(type(data['joining_date']))
+        data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
+        data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
+        print(data)
         teacher = Teacher.objects.create(**data)
         password = Teacher.objects.make_random_password()
         teacher.set_password(password)
@@ -105,10 +111,13 @@ def teacher_api(request):
         for teacher in teachers:
             data.append({
                 'id': teacher.id,
-                'avatar': teacher.avatar if teacher.avatar else None,
+                # 'avatar': teacher.avatar if teacher.avatar else '',
                 'first_name': teacher.first_name,
                 'last_name': teacher.last_name,
                 'email': teacher.email,
+                'phone_number': teacher.phone_number,
+                'joining_date': teacher.joining_date,
+                'date_of_birth': teacher.date_of_birth
             })
         return paginated_queryset_response(data, request)
 
@@ -116,13 +125,13 @@ def teacher_api(request):
 @api_view(['PATCH', 'GET', 'DELETE'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAdminUser])
-def teacher_by_id_api(request, user_id):
-    teacher = get_object_or_404(Teacher, id=user_id)
+def teacher_by_id_api(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
     if request.method == 'PATCH':
         data = request.data
 
         for field_name, field_value in data.items():
-            if hasattr(User, field_name):
+            if hasattr(Teacher, field_name):
                 setattr(teacher, field_name, field_value)
 
         teacher.save()
@@ -131,14 +140,16 @@ def teacher_by_id_api(request, user_id):
     if request.method == 'GET':
         data = {
             'id': teacher.id,
-            'avatar': teacher.avatar if teacher.avatar else None,
+            # 'avatar': teacher.avatar if teacher.avatar else '',
             'first_name': teacher.first_name,
             'last_name': teacher.last_name,
             'email': teacher.email,
+            'phone_number': teacher.phone_number,
+            'joining_date': teacher.joining_date,
+            'date_of_birth': teacher.date_of_birth
         }
-        return Response (data, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
     if request.method == 'DELETE':
         teacher.delete()
-        return Response({'msg': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-
+        return Response({'msg': 'Teacher deleted successfully'}, status=status.HTTP_204_NO_CONTENT)

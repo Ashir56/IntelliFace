@@ -12,17 +12,13 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         # Add custom claims
         token['username'] = user.username
-        # token['id'] = str(user.id)
         token['is_superuser'] = user.is_superuser
         token['is_staff'] = user.is_staff
         token['email'] = user.email
-        # token['is_first_login'] = user.is_first_login
-        # token['avatar'] = user.avatar.url if user.avatar else ''
         token['is_active'] = user.is_active
         token['first_name'] = user.first_name
         token['is_teacher'] = user.is_teacher
         token['is_student'] = user.is_student
-        # token['middle_name'] = user.middle_name
         token['last_name'] = user.last_name
         token['phone_number'] = user.phone_number
 
@@ -34,7 +30,6 @@ class MyTokenRefreshSerializer(TokenRefreshSerializer):
         refresh = RefreshToken(attrs['refresh'])
 
         try:
-            # Manually rotate the refresh token
             new_refresh = RefreshToken()
             new_refresh.set_jti()
             new_refresh.set_exp()
@@ -48,21 +43,15 @@ class MyTokenRefreshSerializer(TokenRefreshSerializer):
         except User.DoesNotExist:
             raise InvalidToken('User not found')
 
-        # Create new access token
         new_access_token = new_refresh.access_token
-
         new_access_token['username'] = user.username
-        # token['id'] = str(user.id)
         new_access_token['is_superuser'] = user.is_superuser
         new_access_token['is_staff'] = user.is_staff
         new_access_token['email'] = user.email
-        # token['is_first_login'] = user.is_first_login
-        # token['avatar'] = user.avatar.url if user.avatar else ''
         new_access_token['is_active'] = user.is_active
         new_access_token['first_name'] = user.first_name
         new_access_token['is_teacher'] = user.is_teacher
         new_access_token['is_student'] = user.is_student
-        # token['middle_name'] = user.middle_name
         new_access_token['last_name'] = user.last_name
         new_access_token['phone_number'] = user.phone_number
 
