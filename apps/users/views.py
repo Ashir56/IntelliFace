@@ -94,7 +94,7 @@ def user_by_id_api(request, user_id):
 @permission_classes([IsAdminUser])
 def teacher_api(request):
     if request.method == 'POST':
-        data = request.data
+        data = request.data.copy()
         if User.objects.filter(email=data['email']).count() > 0:
             raise ValidationError({'msg': "Email already exist"})
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
