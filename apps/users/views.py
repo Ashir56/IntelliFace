@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import render, get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -92,8 +93,11 @@ def user_by_id_api(request, user_id):
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAdminUser])
 def teacher_api(request):
+
     if request.method == 'POST':
         data = request.data.dict()
+        if User.objects.filter(email=data['email']).count() > 0:
+            raise ValidationError({'msg': "Email already exist"})
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
@@ -122,7 +126,6 @@ def teacher_api(request):
                 'date_of_birth': teacher.date_of_birth
             })
         return paginated_queryset_response(data, request)
-
 
 @api_view(['PATCH', 'GET', 'DELETE'])
 @authentication_classes([JWTAuthentication])

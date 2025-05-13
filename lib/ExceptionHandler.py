@@ -9,7 +9,8 @@ def global_exception_handler(exc, context):
         'NotFound': _handle_not_found_error,
         'DoesNotExist': _handle_not_exist,
         'AttributeError': _handle_not_exist,
-        'ValidationError': _handle_generic_error
+        'ValidationError': _handle_generic_error,
+        'IntegrityError': _handle_integrity_error
     }
 
     exception_class = exc.__class__.__name__
@@ -17,6 +18,20 @@ def global_exception_handler(exc, context):
         return handlers[exception_class](exc, context, response)
 
     return response
+
+
+def _handle_integrity_error(exc, context, response):
+    error_message = str(exc)
+
+    # Look for unique constraint violation in the error string
+    if "unique constraint" in error_message.lower() or "unique violation" in error_message.lower() or "duplicate" in error_message.lower():
+        return Response({
+            "error": "A record with this value already exists. Please use a different value."
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({
+        "error": error_message
+    }, status=status.HTTP_400_BAD_REQUEST)
 
 
 def _handle_generic_error(exc, context, response):
