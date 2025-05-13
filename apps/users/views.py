@@ -93,10 +93,13 @@ def user_by_id_api(request, user_id):
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAdminUser])
 def teacher_api(request):
-
     if request.method == 'POST':
+        print("Hello")
         data = request.data.dict()
+        import pdb;
+        pdb.set_trace()
         if User.objects.filter(email=data['email']).count() > 0:
+
             raise ValidationError({'msg': "Email already exist"})
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
