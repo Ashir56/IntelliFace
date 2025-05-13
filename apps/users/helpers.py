@@ -29,7 +29,7 @@ def get_send_email_token(email):
         raise (ValidationError({'email': [ex]}))
 
 
-def send_email_confirm_account(user, type_new_acc, teacher=None):
+def send_email_confirm_account(user, type_new_acc):
     from_email = settings.CONTACT_EMAIL
     to = user.email
     token = get_send_email_token(to)['access']

@@ -7,6 +7,8 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from .helpers import send_email_confirm_account
 from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import User, Teacher, Student
@@ -92,16 +94,16 @@ def user_by_id_api(request, user_id):
 def teacher_api(request):
     if request.method == 'POST':
         data = request.data.dict()
-        print(type(data['joining_date']))
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
-        print(data)
         teacher = Teacher.objects.create(**data)
         password = Teacher.objects.make_random_password()
         teacher.set_password(password)
         validate_password(password)
         teacher.save()
+
+        send_email_confirm_account(teacher, 'TEACHER')
 
         return Response({'msg': 'Teacher created successfully'}, status=status.HTTP_201_CREATED)
 
