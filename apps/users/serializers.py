@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -11,6 +12,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
+        print('Hello')
         token = super().get_token(user)
         # Add custom claims
         token['username'] = user.username
@@ -26,6 +28,29 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         return token
 
+    # def validate(self, attrs):
+    #     email = attrs.get("email")
+    #     password = attrs.get("password")
+    #
+    #     try:
+    #         user = User.objects.get(email=email)
+    #     except User.DoesNotExist:
+    #         raise serializers.ValidationError("Invalid credentials or inactive account.")
+    #
+    #     print (user.is_active)
+    #
+    #     if not user.is_active:
+    #         raise serializers.ValidationError("User account is inactive.")
+    #
+    #     if not user.check_password(password):
+    #         raise serializers.ValidationError("Invalid credentials or inactive account.")
+    #
+    #         # At this point, the user is valid and password matches
+    #     refresh = MyTokenObtainPairSerializer.get_token(user)
+    #     return {
+    #         'refresh': str(refresh),
+    #         'access': str(refresh.access_token),
+    #     }
 
 class MyTokenRefreshSerializer(TokenRefreshSerializer):
     def validate(self, attrs):

@@ -41,7 +41,7 @@ def send_email_confirm_account(user, type_new_acc):
         context = {
             'full_name_receiver': user.first_name + ' ' + user.last_name,
             'create_password_link': settings.TEACHER_URL +
-                                    '/create-new-password?user_type=teacher&token={}'.format(token)
+                                    '/teacher-setup?user_type=teacher&token={}'.format(token)
         }
         html_content = html_template.render(context)
 

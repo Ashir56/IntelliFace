@@ -101,6 +101,7 @@ def teacher_api(request):
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
+        data['is_active'] = True
         password = Teacher.objects.make_random_password()
         data['password'] = password
 
