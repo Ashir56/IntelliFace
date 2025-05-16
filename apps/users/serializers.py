@@ -1,9 +1,11 @@
+from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework import serializers
+from .models import Teacher
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
@@ -61,3 +63,23 @@ class MyTokenRefreshSerializer(TokenRefreshSerializer):
         }
 
         return data
+
+
+
+
+class TeacherSerializer(serializers.ModelSerializer):
+    joining_date = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
+    date_of_birth = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Teacher
+        exclude = ['groups', 'user_permissions']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        user = Teacher(**validated_data)
+        validate_password(password)
+        user.set_password(password)
+        user.save()
+        return user

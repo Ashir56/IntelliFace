@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import render, get_object_or_404
 from rest_framework import status
@@ -10,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .helpers import send_email_confirm_account
-from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer
+from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer, TeacherSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import User, Teacher, Student
 from apps.core.paginations import paginated_queryset_response
@@ -95,19 +96,26 @@ def user_by_id_api(request, user_id):
 def teacher_api(request):
     if request.method == 'POST':
         data = request.data.copy()
-        print(data)
         if User.objects.filter(email=data['email']).count() > 0:
             raise ValidationError({'msg': "Email already exist"})
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
-        teacher = Teacher.objects.create(**data)
         password = Teacher.objects.make_random_password()
-        teacher.set_password(password)
-        validate_password(password)
-        teacher.save()
+        data['password'] = password
 
-        send_email_confirm_account(teacher, 'TEACHER')
+        serializer = TeacherSerializer(data=data)
+
+        if serializer.is_valid():
+            teacher = serializer.save()
+            # teacher = Teacher.objects.create(**data)
+        # password = Teacher.objects.make_random_password()
+        # validate_password(password)
+        # serializer.set_password(password)
+        #
+        # serializer.save()
+
+        send_email_confirm_account(serializer.instance, 'TEACHER')
 
         return Response({'msg': 'Teacher created successfully'}, status=status.HTTP_201_CREATED)
 
