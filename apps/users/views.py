@@ -1,17 +1,18 @@
 from datetime import datetime
 
-from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
-from django.shortcuts import render, get_object_or_404
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import AccessToken
 
 from .helpers import send_email_confirm_account
-from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer, TeacherSerializer
+from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer, TeacherSerializer, StudentSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import User, Teacher, Student
 from apps.core.paginations import paginated_queryset_response
@@ -98,6 +99,7 @@ def teacher_api(request):
         data = request.data.copy()
         if User.objects.filter(email=data['email']).count() > 0:
             raise ValidationError({'msg': "Email already exist"})
+
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
         data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
@@ -116,12 +118,15 @@ def teacher_api(request):
         #
         # serializer.save()
 
-        send_email_confirm_account(serializer.instance, 'TEACHER')
+        # send_email_confirm_account(serializer.instance, 'TEACHER')
 
         return Response({'msg': 'Teacher created successfully'}, status=status.HTTP_201_CREATED)
 
     if request.method == 'GET':
-        teachers = Teacher.objects.all().order_by('created_at')
+        search = request.GET.get('search', None)
+        teachers = Teacher.objects.all().order_by('-created_at')
+        if search:
+            teachers = teachers.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
         data = []
         for teacher in teachers:
             data.append({
@@ -132,7 +137,9 @@ def teacher_api(request):
                 'email': teacher.email,
                 'phone_number': teacher.phone_number,
                 'joining_date': teacher.joining_date,
-                'date_of_birth': teacher.date_of_birth
+                'date_of_birth': teacher.date_of_birth,
+                'department': teacher.department,
+                'specialization': teacher.specialization
             })
         return paginated_queryset_response(data, request)
 
@@ -149,7 +156,7 @@ def teacher_by_id_api(request, teacher_id):
                 setattr(teacher, field_name, field_value)
 
         teacher.save()
-        return Response({'msg': 'User updated successfully'}, status=status.HTTP_200_OK)
+        return Response({'msg': 'Teacher updated successfully'}, status=status.HTTP_200_OK)
 
     if request.method == 'GET':
         data = {
@@ -167,3 +174,105 @@ def teacher_by_id_api(request, teacher_id):
     if request.method == 'DELETE':
         teacher.delete()
         return Response({'msg': 'Teacher deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([])
+def reset_password_confirm_link(request):
+    data_request = request.data
+    if data_request['token']:
+        try:
+            decode_payload = AccessToken(data_request['token'])
+            payload = decode_payload.payload
+        except Exception as ex:
+            raise ValidationError({'token': [ex]})
+        new_password = data_request['password']
+        validate_password(new_password)
+        user = User.objects.get(id=payload['user_id'])
+        user.set_password(new_password)
+        user.save()
+        return Response(status=status.HTTP_200_OK)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def student_api(request):
+    if request.method == 'POST':
+        data = request.data.copy()
+        if User.objects.filter(email=data['email']).count() > 0:
+            raise ValidationError({'msg': "Email already exist"})
+
+        data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
+        data['is_student'] = True
+        data['is_active'] = True
+        password = Student.objects.make_random_password()
+        data['password'] = password
+        # import pdb; pdb.set_trace()
+
+        serializer = StudentSerializer(data=data)
+
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+
+        return Response({'msg': 'Student created successfully'}, status=status.HTTP_201_CREATED)
+
+    if request.method == 'GET':
+        search = request.GET.get('search', None)
+        students = Student.objects.all().order_by('-created_at')
+        if search:
+            students = students.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
+        data = []
+        for student in students:
+            data.append({
+                'id': student.id,
+                # 'avatar': teacher.avatar if teacher.avatar else '',
+                'first_name': student.first_name,
+                'last_name': student.last_name,
+                'email': student.email,
+                'phone_number': student.phone_number,
+                'date_of_birth': student.date_of_birth,
+                'guardian_name': student.guardian_name,
+                'guardian_contact': student.guardian_contact,
+                'enrollment_status': student.enrollment_status,
+                'batch_year': student.batch_year
+
+            })
+        return paginated_queryset_response(data, request)
+
+
+@api_view(['PATCH', 'GET', 'DELETE'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def student_by_id_api(request, student_id):
+    student = get_object_or_404(Student, id=student_id)
+    if request.method == 'PATCH':
+        data = request.data
+
+        for field_name, field_value in data.items():
+            if hasattr(Student, field_name):
+                setattr(student, field_name, field_value)
+
+        student.save()
+        return Response({'msg': 'Student updated successfully'}, status=status.HTTP_200_OK)
+
+    if request.method == 'GET':
+        data = {
+            'id': student.id,
+            # 'avatar': teacher.avatar if teacher.avatar else '',
+            'first_name': student.first_name,
+            'last_name': student.last_name,
+            'email': student.email,
+            'phone_number': student.phone_number,
+            'date_of_birth': student.date_of_birth,
+            'guardian_name': student.guardian_name,
+            'guardian_contact': student.guardian_contact,
+            'enrollment_status': student.enrollment_status,
+            'batch_year': student.batch_year
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    if request.method == 'DELETE':
+        student.delete()
+        return Response({'msg': 'Student deleted successfully'}, status=status.HTTP_204_NO_CONTENT)

@@ -6,7 +6,7 @@ from .models import User
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
-from .models import Teacher
+from .models import Teacher, Student
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
@@ -104,6 +104,23 @@ class TeacherSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = Teacher(**validated_data)
+        validate_password(password)
+        user.set_password(password)
+        user.save()
+        return user
+
+
+class StudentSerializer(serializers.ModelSerializer):
+    date_of_birth = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = Student
+        exclude = ['groups', 'user_permissions']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        user = Student(**validated_data)
         validate_password(password)
         user.set_password(password)
         user.save()
