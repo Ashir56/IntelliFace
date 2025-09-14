@@ -12,9 +12,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
 
 from .helpers import send_email_confirm_account
-from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer, TeacherSerializer, StudentSerializer
+from .serializers import MyTokenRefreshSerializer, MyTokenObtainPairSerializer, TeacherSerializer, StudentSerializer, \
+    ClassSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .models import User, Teacher, Student
+from .models import User, Teacher, Student, Class
 from apps.core.paginations import paginated_queryset_response
 
 # Create your views here.
@@ -276,3 +277,72 @@ def student_by_id_api(request, student_id):
     if request.method == 'DELETE':
         student.delete()
         return Response({'msg': 'Student deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def class_api(request):
+    if request.method == 'POST':
+        serializer = ClassSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    if request.method == 'GET':
+        search = request.GET.get('search', None)
+        classes = Class.objects.all().order_by('-created_at')
+        if search:
+            classes = classes.filter(Q(name__icontains=search) | Q(block__icontans=search))
+
+        result = []
+
+        for one_class in classes:
+            result.append({
+                'id': one_class.id,
+                'name': one_class.name,
+                'block': one_class.block,
+                'cameras': [
+                    {
+                        'id': str(camera.id),
+                        'name': camera.name,
+                        'ip_address': camera.ip_address,
+                    }
+                    for camera in one_class.cameras.all()
+                ]
+            })
+        return paginated_queryset_response(result, request)
+
+@api_view(['PATCH', 'GET', 'DELETE'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def class_by_id_api(request, class_id):
+    one_class = get_object_or_404(Class, id=class_id)
+
+    if request.method == 'PATCH':
+        serializer = ClassSerializer(one_class, data=request.data, partial=True)  # partial=True allows PATCH
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'msg': 'Student updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == 'GET':
+        data = {
+            'id': one_class.id,
+            'name': one_class.name,
+            'block': one_class.block,
+            'cameras': [
+                {
+                    'id': cam.id,
+                    'name': cam.name,
+                    'ip_address': cam.ip_address
+                }
+                for cam in one_class.cameras.all()
+            ]
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    if request.method == 'DELETE':
+        one_class.delete()
+        return Response({'msg': 'Class deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+

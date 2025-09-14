@@ -6,6 +6,25 @@ import uuid
 from django.contrib.auth.password_validation import validate_password
 from string import ascii_lowercase, ascii_uppercase, digits, punctuation
 
+class GenericModel(models.Model):
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        null=True,
+        editable=False,
+        verbose_name=u'Updated at',)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        editable=False,
+        null=True,
+        verbose_name=u'Created at')
+
+    def save(self, *args, **kwargs):
+
+        super(GenericModel, self).save(*args, **kwargs)
+
+    class Meta:
+        abstract = True
+
 
 class UserManager(BaseUserManager):
 
@@ -128,7 +147,7 @@ class Student(User):
         return f"{self.first_name} {self.last_name} (Batch {self.batch_year})"
 
 
-class Class(models.Model):
+class Class(GenericModel):
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     name = models.CharField(max_length=255, null=True)
     block = models.CharField(max_length=255, null=True)
@@ -137,7 +156,7 @@ class Class(models.Model):
         return f"{self.name} ({self.block})"
 
 
-class Camera(models.Model):
+class Camera(GenericModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     class_ref = models.ForeignKey(
         Class,

@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import User
+from .models import User, Camera, Class
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -125,3 +125,39 @@ class StudentSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+
+class CameraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Camera
+        fields = ["id", "name", "ip_address"]
+
+
+class ClassSerializer(serializers.ModelSerializer):
+    cameras = CameraSerializer(many=True, required=False)
+
+    class Meta:
+        model = Class
+        fields = ["id", "name", "block", "cameras"]
+
+    def create(self, validated_data):
+        cameras_data = validated_data.pop("cameras", [])
+        class_instance = Class.objects.create(**validated_data)
+
+        for camera_data in cameras_data:
+            Camera.objects.create(class_ref=class_instance, **camera_data)
+
+        return class_instance
+
+    def update(self, instance, validated_data):
+        cameras_data = validated_data.pop("cameras", [])
+        instance.name = validated_data.get("name", instance.name)
+        instance.block = validated_data.get("block", instance.block)
+        instance.save()
+
+        # Update / recreate cameras
+        instance.cameras.all().delete()
+        for camera_data in cameras_data:
+            Camera.objects.create(class_ref=instance, **camera_data)
+
+        return instance
