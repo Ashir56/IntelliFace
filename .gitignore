@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 .idea
+.DS_Store
 venv/
 env/
 .intelliface/
@@ -56,3 +57,6 @@ models/
 weights/
 face_models/
 output/
+
+
+.vercelignore
