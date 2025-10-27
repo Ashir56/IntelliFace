@@ -1,0 +1,57 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+venv/
+env/
+.intelliface/
+.intelliface_env/
+.intelliface/
+.intelliface*/  # In case your virtual env folder is named (intelliface)
+.intelliface
+
+# ---- Django ----
+*.log
+*.pot
+*.pyc
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# ---- Environment variables ----
+.env
+.env.local
+.env.*.local
+
+# ---- IDE / OS files ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Vercel / Deployment ----
+.vercel/
+build/
+dist/
+node_modules/
+
+# ---- Jupyter / Notebooks ----
+*.ipynb_checkpoints
+
+# ---- Cache ----
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+*.mypy_cache/
+
+# ---- InsightFace / Models ----
+*.onnx
+*.bin
+*.pth
+models/
+weights/
+face_models/
+output/
