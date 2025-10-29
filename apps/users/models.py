@@ -133,6 +133,7 @@ class Student(User):
     gpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     attendance_percentage = models.FloatField(default=0.0)
     extra_curricular = models.TextField(null=True, blank=True)
+    face_embeddings = models.JSONField(default=list, blank=True)
     enrollment_status = models.CharField(
         max_length=20,
         choices=[('active', 'Active'), ('inactive', 'Inactive'), ('graduated', 'Graduated')],

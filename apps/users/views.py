@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
+from ..core.embedding import student_picture_embedding
 
 from .helpers import send_email_confirm_account
 from .serializers import CourseSerializer, MyTokenRefreshSerializer, MyTokenObtainPairSerializer, StudentImageSerializer, TeacherSerializer, StudentSerializer, \
@@ -102,7 +103,8 @@ def teacher_api(request):
             raise ValidationError({'msg': "Email already exist"})
 
         data['joining_date'] = datetime.strptime(data['joining_date'], "%Y-%m-%d").date()
-        data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
+        if 'date_of_birth' in data:
+            data['date_of_birth'] = datetime.strptime(data['date_of_birth'], "%Y-%m-%d").date()
         data['is_teacher'] = True
         data['is_active'] = True
         password = Teacher.objects.make_random_password()
@@ -110,8 +112,8 @@ def teacher_api(request):
 
         serializer = TeacherSerializer(data=data)
 
-        if serializer.is_valid():
-            teacher = serializer.save()
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
             # teacher = Teacher.objects.create(**data)
         # password = Teacher.objects.make_random_password()
         # validate_password(password)
@@ -247,7 +249,7 @@ def student_api(request):
 @permission_classes([IsAdminUser])
 def upload_student_image(request, student_id):
     student = get_object_or_404(Student, id=student_id)
-    files = request.FILES.getlist('images')  # Must match FormData key: "images"
+    files = request.FILES.getlist('images')
 
     if not files:
         return Response({'msg': 'No images uploaded'}, status=status.HTTP_400_BAD_REQUEST)
@@ -256,6 +258,8 @@ def upload_student_image(request, student_id):
     for file in files:
         image_instance = StudentImage.objects.create(student=student, image=file)
         created_images.append(StudentImageSerializer(image_instance).data)
+
+    student_picture_embedding(student)
 
     return Response({
         'msg': f'{len(files)} image(s) uploaded successfully',
