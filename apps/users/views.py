@@ -253,7 +253,6 @@ def upload_student_image(request, student_id):
 
     if not files:
         return Response({'msg': 'No images uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-
     created_images = []
     for file in files:
         image_instance = StudentImage.objects.create(student=student, image=file)
