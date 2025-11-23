@@ -131,6 +131,7 @@ class Student(User):
     guardian_name = models.CharField(max_length=255, null=True, blank=True)
     guardian_contact = models.CharField(max_length=20, null=True, blank=True)
     gpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    reg_no = models.CharField(max_length=255, null=True, blank=True)
     attendance_percentage = models.FloatField(default=0.0)
     extra_curricular = models.TextField(null=True, blank=True)
     face_embeddings = models.JSONField(default=list, blank=True)
@@ -173,13 +174,66 @@ class Camera(GenericModel):
     )
     name = models.CharField(max_length=255, null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    channel_number = models.PositiveIntegerField(null=True, blank=True)
+    username = models.CharField(max_length=255, default="admin")
+    password = models.CharField(max_length=255, default="admin@1234")
     def __str__(self):
         return f"Camera {self.name} - {self.class_ref.name}"
-    
+
+
+
+class Lecture(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    class_ref = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="lectures")
+    start_time = models.DateTimeField(auto_now_add=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.class_ref.name} - {self.start_time}"
+
+class Snapshot(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE, related_name="snapshots")
+    camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name="snapshots")
+    image = models.ImageField(upload_to="snapshots/%Y/%m/%d/")
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Snapshot {self.timestamp} - {self.camera.name}"
+
+
 class Course(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100)
     prereq = models.CharField(max_length=100, blank=True, null=True)
     instructor = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='courses')
+    # students = models.ManyToManyField('Student', related_name='courses', blank=True)
 
-    def __str__(self):
+    def _str_(self):
         return f"Course {self.name} - {self.prereq}"
+
+class StudentCourses(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, related_name='courses', on_delete=models.CASCADE)
+    courses = models.ForeignKey(Course, related_name='students', on_delete=models.CASCADE)
+
+    def _str_(self):
+        return f"Course {self.student.name} - {self.courses.name}"
+
+
+
+class Attendance(GenericModel):
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='attendances')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendances')
+    timestamp = models.DateTimeField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    marked_by = models.ForeignKey(Teacher, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def _str_(self):
+        return f"{self.student} - {self.course} @ {self.timestamp} : {self.status}"

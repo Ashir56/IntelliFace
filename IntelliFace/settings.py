@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-u2zz+&d%v-vqytdv2hthycim$oo&x8t(pysrpr86d#9+2)!zes
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['127.0.0.1', 'intelliface-production.up.railway.app', '*', '.vercel.app']
+ALLOWED_HOSTS = ['127.0.0.1', 'intelliface-production.up.railway.app', '*', '.vercel.app', '10.0.2.2']
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_ALL_ORIGINS = True
@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    'apps.users'
+    'apps.users',
+    'apps.core'
 ]
 
 MIDDLEWARE = [
@@ -165,13 +166,13 @@ SIMPLE_JWT = {
 }
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
+        # 'rest_framework.authentication.BasicAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend'],
@@ -196,3 +197,17 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'ashir.rasheedx@gmail.com'
 EMAIL_HOST_PASSWORD = 'unlk hyyp xetw ynlt'
 CONTACT_EMAIL = EMAIL_HOST_USER
+
+
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+CELERY_BEAT_SCHEDULE = {
+    "take_snapshots_every_5_minutes": {
+        "task": "apps.core.tasks.capture_snapshots_for_active_lectures",
+        "schedule": 300,
+    }
+}

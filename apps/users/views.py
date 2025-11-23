@@ -1,27 +1,32 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
+
+from .permissions import IsTeacher
 from ..core.embedding import student_picture_embedding
 
 from .helpers import send_email_confirm_account
 from .serializers import CourseSerializer, MyTokenRefreshSerializer, MyTokenObtainPairSerializer, StudentImageSerializer, TeacherSerializer, StudentSerializer, \
     ClassSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .models import Course, StudentImage, User, Teacher, Student, Class
+from .models import Course, StudentImage, User, Teacher, Student, Class, Lecture, Attendance, StudentCourses
 from apps.core.paginations import paginated_queryset_response
 
 # Create your views here.
 
 from django.shortcuts import render
+
+from ..core.recognition import recognize_attendance_from_snapshots_model
 
 
 def index(request):
@@ -201,6 +206,7 @@ def reset_password_confirm_link(request):
 @api_view(['POST', 'GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAdminUser])
+@transaction.atomic
 def student_api(request):
     if request.method == 'POST':
         data = request.data.copy()
@@ -212,14 +218,18 @@ def student_api(request):
         data['is_active'] = True
         password = Student.objects.make_random_password()
         data['password'] = password
-        # import pdb; pdb.set_trace()
 
         serializer = StudentSerializer(data=data)
 
         if serializer.is_valid(raise_exception=True):
             serializer.save()
 
-        return Response({'msg': 'Student created successfully'}, status=status.HTTP_201_CREATED)
+        courses = data.pop('courses', [])
+        for course in courses:
+            course_instance = Course.objects.get(id=course)
+            StudentCourses.objects.create(student=serializer.instance, courses=course_instance)
+
+        return Response({'msg': 'Student created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
     if request.method == 'GET':
         search = request.GET.get('search', None)
@@ -228,19 +238,27 @@ def student_api(request):
             students = students.filter(Q(first_name__icontains=search) | Q(last_name__icontains=search) | Q(email__icontains=search))
         data = []
         for student in students:
+
             data.append({
                 'id': student.id,
                 # 'avatar': teacher.avatar if teacher.avatar else '',
                 'first_name': student.first_name,
                 'last_name': student.last_name,
                 'email': student.email,
+                'reg_no': student.reg_no,
                 'phone_number': student.phone_number,
                 'date_of_birth': student.date_of_birth,
                 'guardian_name': student.guardian_name,
                 'guardian_contact': student.guardian_contact,
                 'enrollment_status': student.enrollment_status,
-                'batch_year': student.batch_year
-
+                'batch_year': student.batch_year,
+                'courses': [
+                    {
+                        'id': course.courses.id,
+                        'name': course.courses.name,
+                    }
+                    for course in student.courses.all()
+                ]
             })
         return paginated_queryset_response(data, request)
 
@@ -272,12 +290,18 @@ def student_by_id_api(request, student_id):
     student = get_object_or_404(Student, id=student_id)
     if request.method == 'PATCH':
         data = request.data
+        courses = data.pop('courses', None)
 
         for field_name, field_value in data.items():
             if hasattr(Student, field_name):
                 setattr(student, field_name, field_value)
 
         student.save()
+        if courses:
+            StudentCourses.objects.filter(student=student).delete()
+            for course in courses:
+                course_instance = Course.objects.get(id=course)
+                StudentCourses.objects.create(student=student, courses=course_instance)
         return Response({'msg': 'Student updated successfully'}, status=status.HTTP_200_OK)
 
     if request.method == 'GET':
@@ -287,12 +311,20 @@ def student_by_id_api(request, student_id):
             'first_name': student.first_name,
             'last_name': student.last_name,
             'email': student.email,
+            'reg_no': student.reg_no,
             'phone_number': student.phone_number,
             'date_of_birth': student.date_of_birth,
             'guardian_name': student.guardian_name,
             'guardian_contact': student.guardian_contact,
             'enrollment_status': student.enrollment_status,
-            'batch_year': student.batch_year
+            'batch_year': student.batch_year,
+            'courses': [
+            {
+                'id': course.courses.id,
+                'name': course.courses.name,
+            }
+            for course in student.courses.all()
+        ]
         }
         return Response(data, status=status.HTTP_200_OK)
 
@@ -307,7 +339,7 @@ def student_by_id_api(request, student_id):
 def class_api(request):
     if request.method == 'POST':
         serializer = ClassSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(raise_exception=True):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -357,7 +389,9 @@ def class_by_id_api(request, class_id):
                 {
                     'id': cam.id,
                     'name': cam.name,
-                    'ip_address': cam.ip_address
+                    'username': cam.username,
+                    'password': cam.password,
+                    'channel_number': cam.channel_number
                 }
                 for cam in one_class.cameras.all()
             ]
@@ -370,24 +404,51 @@ def class_by_id_api(request, class_id):
 
 @api_view(['POST', 'GET'])
 @authentication_classes([JWTAuthentication])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAdminUser | IsTeacher])
 def course_api(request):
+    user = request.user
     if request.method == 'POST':
-        print("📩 Incoming request data:", request.data)
 
         serializer = CourseSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            print("✅ Course saved successfully!")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
-         print("❌ Serializer errors:", serializer.errors)
          return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     if request.method == 'GET':
+        data = []
+        # import pdb; pdb.set_trace()
         courses = Course.objects.all().order_by('-created_at')
-        serializer = CourseSerializer(courses, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if user.is_teacher:
+            courses = courses.filter(instructor__user_ptr_id=user.id)
+        for course in courses:
+            data.append({
+                'id': course.id,
+                'name': course.name,
+                'prereq': course.prereq,
+                'instructor': f"{course.instructor.first_name} {course.instructor.last_name}".strip()
+            })
+        return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser, IsTeacher])
+def course_students_api(request, course_id):
+    if request.method == 'GET':
+        course = get_object_or_404(Course, id=course_id)
+        students = StudentCourses.objects.filter(courses=course)
+        data = []
+        for s in students:
+            data.append({
+                'id': s.student.id,
+                'first_name': s.student.first_name,
+                'last_name': s.student.last_name,
+                'email': s.student.email,
+                'reg_no': s.student.reg_no
+            })
+        return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(['PATCH', 'GET', 'DELETE'])
@@ -410,3 +471,69 @@ def course_by_id_api(request, course_id):
     if request.method == 'DELETE':
         course.delete()
         return Response({'msg': 'Course deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+
+@api_view(['POST'])
+@permission_classes([])
+def course_mark_attendance_api(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    user = request.user
+    if not getattr(user, 'is_teacher', False):
+        return Response({'detail': 'Only teachers allowed'}, status=status.HTTP_403_FORBIDDEN)
+
+    payload = request.data
+    timestamp = payload.get('timestamp')
+    records = payload.get('records', [])
+    created = []
+    for r in records:
+        try:
+            student = Student.objects.get(id=r.get('student_id'))
+        except Student.DoesNotExist:
+            continue
+        status_val = r.get('status') if r.get('status') in ['present', 'absent'] else 'absent'
+        att = Attendance.objects.create(
+            course=course,
+            student=student,
+            timestamp=timestamp,
+            status=status_val,
+            marked_by=user if isinstance(user, Teacher) else None
+        )
+        created.append({'id': str(att.id), 'student_id': str(student.id), 'status': att.status})
+
+    return Response({'created': created}, status=status.HTTP_201_CREATED)
+
+@api_view(['POST', 'GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher])
+@transaction.atomic()
+def start_attendance_api(request):
+    if request.method == 'POST':
+        class_id = request.data.get('class', None)
+        # import pdb; pdb.set_trace()
+        if class_id:
+            class_obj = Class.objects.filter(id=class_id).first()
+            lecture = Lecture.objects.create(class_ref=class_obj)
+            return Response({
+                'id': lecture.id,
+                'start_time': lecture.start_time.isoformat() if lecture.start_time else None,
+                'end_time': lecture.end_time.isoformat() if lecture.end_time else None,
+                'class_ref': {'id': lecture.class_ref.id, 'name': lecture.class_ref.name}
+            }, status=status.HTTP_200_OK)
+        return Response({'msg': 'Class ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST', 'GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher])
+def stop_attendance(request, lecture_id):
+    try:
+        lecture = get_object_or_404(Lecture, lecture_id)
+        if request.method == 'POST':
+            lecture.end_time = timezone.now()
+            lecture.save()
+            recognize_attendance_from_snapshots_model(lecture)
+            return Response({'msg': 'Attendance has been marked'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(e)
+        return Response({'msg': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,15 +1,10 @@
-import os
 import cv2
 from insightface.app import FaceAnalysis
-import json
-from ..users.models import Student, StudentImage
 
 def student_picture_embedding(student):
     app = FaceAnalysis(allowed_modules=['detection', 'recognition'])
     app.prepare(ctx_id=-1, det_size=(640, 640))
     face_embedding = []
-    # import pdb; pdb.set_trace()
-    print(student.images.all())
 
     for stu in student.images.all():
         image = stu.image.path

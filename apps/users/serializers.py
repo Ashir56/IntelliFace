@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Course, StudentImage, User, Camera, Class
+from .models import Course, StudentImage, User, Camera, Class, StudentCourses
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -13,7 +13,6 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
-        print('Hello')
         token = super().get_token(user)
         # Add custom claims
         token['username'] = user.username
@@ -107,6 +106,7 @@ class TeacherSerializer(serializers.ModelSerializer):
         user = Teacher(**validated_data)
         validate_password(password)
         user.set_password(password)
+        user.is_staff = True
         user.save()
         return user
 
@@ -116,28 +116,38 @@ class StudentImageSerializer(serializers.ModelSerializer):
         model = StudentImage
         fields = ['id', 'image', 'uploaded_at']
 
+# class StudentCoursesSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = StudentCourses
+#         fields = '__all__'
+
 class StudentSerializer(serializers.ModelSerializer):
     date_of_birth = serializers.DateField(format="%Y-%m-%d", input_formats=["%Y-%m-%d"])
     password = serializers.CharField(write_only=True)
     images = StudentImageSerializer(many=True, read_only=True)
+    # courses = StudentCoursesSerializer(many=True, required=False)
+
 
     class Meta:
         model = Student
         exclude = ['groups', 'user_permissions']
 
     def create(self, validated_data):
+        # import pdb; pdb.set_trace()
+        courses = validated_data.pop('courses', [])
         password = validated_data.pop('password')
-        user = Student(**validated_data)
+        student = Student(**validated_data)
         validate_password(password)
-        user.set_password(password)
-        user.save()
-        return user
+        student.set_password(password)
+        student.save()
+
+        return student
 
 
 class CameraSerializer(serializers.ModelSerializer):
     class Meta:
         model = Camera
-        fields = ["id", "name", "ip_address"]
+        fields = ["id", "name", "username", "password", "channel_number", "ip_address"]
 
 
 class ClassSerializer(serializers.ModelSerializer):
@@ -162,7 +172,6 @@ class ClassSerializer(serializers.ModelSerializer):
         instance.block = validated_data.get("block", instance.block)
         instance.save()
 
-        # Update / recreate cameras
         instance.cameras.all().delete()
         for camera_data in cameras_data:
             Camera.objects.create(class_ref=instance, **camera_data)
@@ -219,37 +228,51 @@ class ClassSerializer(serializers.ModelSerializer):
 
 #         return course_instance
 
-# ✅ SERIALIZER
 class CourseSerializer(serializers.ModelSerializer):
-    instructor = serializers.CharField(required=False)  # accept string name for display
+    instructor = serializers.CharField(required=False)
+    students = serializers.SerializerMethodField()
 
     class Meta:
         model = Course
-        fields = ['id', 'name', 'prereq', 'instructor']
+        fields = ['id', 'name', 'prereq', 'instructor', 'students']
 
     def to_representation(self, instance):
-        """Show instructor name instead of ID when returning data."""
         rep = super().to_representation(instance)
+        rep['id'] = str(instance.id)
         if instance.instructor:
             rep['instructor'] = f"{instance.instructor.first_name} {instance.instructor.last_name}".strip()
+        # include enrolled students in a compact form, always output id as string
+        rep['students'] = [
+            {
+                'id': str(s.id),
+                'first_name': s.first_name,
+                'last_name': s.last_name,
+                'email': s.email
+            }
+            for s in instance.students.all()
+        ]
         return rep
 
+    def get_students(self, instance):
+        return [
+            {
+                'id': str(s.id),
+                'first_name': s.first_name,
+                'last_name': s.last_name,
+                'email': s.email,
+            }
+            for s in instance.students.all()
+        ]
+
     def create(self, validated_data):
-        instructor_name = validated_data.pop('instructor', '').strip()
+        instructor_id = validated_data.pop('instructor', '').strip()
         instructor_instance = None
-
-        if instructor_name:
-            name_parts = instructor_name.split()
-            first_name = name_parts[0]
-            last_name = name_parts[1] if len(name_parts) > 1 else ""
-
-            instructor_instance = Teacher.objects.filter(
-                Q(first_name__iexact=first_name) & Q(last_name__iexact=last_name)
-            ).first()
+        if instructor_id:
+            instructor_instance = Teacher.objects.filter(id=instructor_id).first()
 
             if not instructor_instance:
                 raise serializers.ValidationError({
-                    "instructor": f"No teacher found with name '{instructor_name}'."
+                    "instructor": f"No teacher found."
                 })
 
         course_instance = Course.objects.create(
@@ -259,7 +282,6 @@ class CourseSerializer(serializers.ModelSerializer):
         return course_instance
 
     def update(self, instance, validated_data):
-        """Handle instructor updates cleanly"""
         instructor_name = validated_data.pop('instructor', '').strip()
         if instructor_name:
             name_parts = instructor_name.split()
