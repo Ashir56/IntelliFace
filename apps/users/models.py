@@ -196,6 +196,7 @@ class Snapshot(GenericModel):
     lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE, related_name="snapshots")
     camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name="snapshots")
     image = models.ImageField(upload_to="snapshots/%Y/%m/%d/")
+    processed_image = models.ImageField(upload_to="snapshots/processed/%Y/%m/%d/", null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -231,9 +232,10 @@ class Attendance(GenericModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='attendances')
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='attendances')
-    timestamp = models.DateTimeField()
+    timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES)
     marked_by = models.ForeignKey(Teacher, on_delete=models.SET_NULL, null=True, blank=True)
+    lecture = models.ForeignKey(Lecture, on_delete=models.CASCADE, related_name='attendances', null=True, blank=True)
 
     def _str_(self):
         return f"{self.student} - {self.course} @ {self.timestamp} : {self.status}"

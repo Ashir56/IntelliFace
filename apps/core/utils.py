@@ -14,7 +14,6 @@ def capture_snapshot(camera, lecture):
     nvr_password = quote(camera.password, safe="")
     channel = camera.channel_number
 
-    # ⚠️ MUST be rtsp:// not http://
     rtsp_url = (
         f"rtsp://{nvr_username}:{nvr_password}@{nvr_ip}:554/"
         f"cam/realmonitor?channel={channel}&subtype=0&unicast=true&proto=Onvif"

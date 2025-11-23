@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime
+from django.utils import timezone
 
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
@@ -526,13 +527,32 @@ def start_attendance_api(request):
 @api_view(['POST', 'GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsTeacher])
-def stop_attendance(request, lecture_id):
+@transaction.atomic()
+def stop_attendance_api(request, lecture_id):
     try:
-        lecture = get_object_or_404(Lecture, lecture_id)
+        lecture = get_object_or_404(Lecture, id=lecture_id)
         if request.method == 'POST':
             lecture.end_time = timezone.now()
             lecture.save()
-            recognize_attendance_from_snapshots_model(lecture)
+            data=request.data.copy()
+            course_id = data.get('course', None)
+            course = None
+            if course_id:
+                course = get_object_or_404(Course, id=course_id)
+            result = recognize_attendance_from_snapshots_model(lecture)
+            attendance_dict = result["attendance"]
+            percentage_dict = result["percentage_presence"]
+
+            for student, count in attendance_dict.items():
+                present_percentage = percentage_dict[student]
+                attendance_status = 'present' if present_percentage > 50 else 'absent'
+                Attendance.objects.create(
+                    student=student,
+                    lecture=lecture,
+                    marked_by=request.user.teacher if request.user else None,
+                    course=course,
+                    status=attendance_status,
+                )
             return Response({'msg': 'Attendance has been marked'}, status=status.HTTP_200_OK)
     except Exception as e:
         print(e)

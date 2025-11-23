@@ -3,38 +3,49 @@ import numpy as np
 from insightface.app import FaceAnalysis
 from sklearn.metrics.pairwise import cosine_similarity
 from apps.users.models import Student, Snapshot
-from django.conf import settings
 import os
+from django.core.files.base import ContentFile
+
 
 def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, threshold=0.50):
-    snapshot_queryset = None
+    # Fetch snapshots
     if lecture is None:
         snapshots_queryset = Snapshot.objects.all()
     else:
         snapshots_queryset = Snapshot.objects.filter(lecture=lecture)
 
-    # Load student embeddings from DB
+    # Active students
     students = Student.objects.filter(enrollment_status='active')
+
+    # Store embeddings with Student instance as key
     student_embeddings = {
-        f"{s.first_name} {s.last_name}": np.array(s.face_embeddings)
-        for s in students if s.face_embeddings
+        student: np.array(student.face_embeddings)
+        for student in students if student.face_embeddings
     }
 
     if not student_embeddings:
-        return {"attendance": {}, "total_snapshots": 0, "percentage_presence": {}, "processed_snapshots": []}
+        return {
+            "attendance": {},
+            "total_snapshots": 0,
+            "percentage_presence": {},
+            "processed_snapshots": []
+        }
 
+    # Initialize InsightFace
     app = FaceAnalysis(allowed_modules=['detection', 'recognition'])
     app.prepare(ctx_id=-1, det_size=(640, 640))
 
-    # Prepare output folder
+    # Create output folder if needed
     if output_folder:
         os.makedirs(output_folder, exist_ok=True)
 
-    # Attendance tracking
-    attendance = {name: 0 for name in student_embeddings.keys()}
+    # Attendance dictionary now holds Student objects
+    attendance = {student: 0 for student in student_embeddings.keys()}
+
     total_snapshots = 0
     processed_snapshots = []
 
+    # Process each snapshot
     for snapshot in snapshots_queryset:
         img_path = snapshot.image.path
         img = cv2.imread(img_path)
@@ -53,38 +64,66 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
             best_match = None
             best_score = -1
 
-            for student_name, student_embedding in student_embeddings.items():
-                score = cosine_similarity(embedding, student_embedding.reshape(1, -1))[0][0]
+            # Compare with stored student embeddings
+            for student, student_embedding in student_embeddings.items():
+                score = cosine_similarity(
+                    embedding,
+                    student_embedding.reshape(1, -1)
+                )[0][0]
+
                 if score > best_score:
                     best_score = score
-                    best_match = student_name
+                    best_match = student
 
-            box = face.bbox.astype(int)
-            x1, y1, x2, y2 = box
+            # Bounding box
+            x1, y1, x2, y2 = face.bbox.astype(int)
 
-            if best_score > threshold:
+            # Match decision
+            if best_score >= threshold:
                 attendance[best_match] += 1
-                label = f"{best_match} ({best_score:.2f})"
+
+                label = (
+                    f"{best_match.first_name} {best_match.last_name} "
+                    f"({best_score:.2f})"
+                )
                 color = (0, 255, 0)
             else:
                 label = f"Unknown ({best_score:.2f})"
                 color = (0, 0, 255)
 
-            if output_folder:
-                cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+            # Draw bounding box
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
-        if output_folder:
-            output_path = os.path.join(output_folder, os.path.basename(img_path))
-            cv2.imwrite(output_path, img)
+            text_y = y1 - 10 if y1 - 10 > 20 else y1 + 20
 
+            cv2.putText(
+                img,
+                label,
+                (x1, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2
+            )
+
+        # Save processed image to Snapshot.processed_image
+        _, buffer = cv2.imencode(".jpg", img)
+        processed_bytes = buffer.tobytes()
+
+        snapshot.processed_image.save(
+            f"processed_{os.path.basename(img_path)}",
+            ContentFile(processed_bytes),
+            save=True
+        )
+
+    # Calculate presence percentages
     percentage_presence = {
         student: (count / total_snapshots * 100) if total_snapshots > 0 else 0
         for student, count in attendance.items()
     }
 
     return {
-        "attendance": attendance,
+        "attendance": attendance,   # keys = Student instances
         "total_snapshots": total_snapshots,
         "percentage_presence": percentage_presence,
         "processed_snapshots": processed_snapshots
