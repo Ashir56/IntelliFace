@@ -1,7 +1,8 @@
 from django.urls import path
 from .views import (MyTokenObtainPairView, MyTokenRefreshView, course_api, course_by_id_api, index, teacher_api,
                     teacher_by_id_api, reset_password_confirm_link, student_api, student_by_id_api, class_api,
-                    class_by_id_api, upload_student_image, course_students_api, course_mark_attendance_api, start_attendance_api, stop_attendance_api)
+                    class_by_id_api, upload_student_image, course_students_api, course_mark_attendance_api, start_attendance_api, stop_attendance_api,
+                    lecture_api, get_attendance_details_by_lecture)
 
 app_name = 'users'
 
@@ -25,4 +26,6 @@ urlpatterns = [
     path('student', student_api, name='student api'),
     path('start-attendance', start_attendance_api, name='start_attendance_api'),
     path('stop-attendance/<str:lecture_id>', stop_attendance_api, name='stop_attendance_api'),
+    path('lecture', lecture_api, name='lecture_api'),
+    path('attendance/<str:lecture_id>', get_attendance_details_by_lecture, name='get_attendance_details_by_lecture'),
 ]

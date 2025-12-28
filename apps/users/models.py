@@ -180,16 +180,34 @@ class Camera(GenericModel):
     def __str__(self):
         return f"Camera {self.name} - {self.class_ref.name}"
 
+class Course(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    prereq = models.CharField(max_length=100, blank=True, null=True)
+    instructor = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='courses')
+    # students = models.ManyToManyField('Student', related_name='courses', blank=True)
 
+    def _str_(self):
+        return f"Course {self.name} - {self.prereq}"
 
 class Lecture(GenericModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     class_ref = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="lectures")
+    # course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lectures')
     start_time = models.DateTimeField(auto_now_add=True)
     end_time = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.class_ref.name} - {self.start_time}"
+
+class StudentCourses(GenericModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(Student, related_name='courses', on_delete=models.CASCADE)
+    courses = models.ForeignKey(Course, related_name='students', on_delete=models.CASCADE)
+
+    def _str_(self):
+        return f"Course {self.student.name} - {self.courses.name}"
+
 
 class Snapshot(GenericModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -201,26 +219,6 @@ class Snapshot(GenericModel):
 
     def __str__(self):
         return f"Snapshot {self.timestamp} - {self.camera.name}"
-
-
-class Course(GenericModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100)
-    prereq = models.CharField(max_length=100, blank=True, null=True)
-    instructor = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='courses')
-    # students = models.ManyToManyField('Student', related_name='courses', blank=True)
-
-    def _str_(self):
-        return f"Course {self.name} - {self.prereq}"
-
-class StudentCourses(GenericModel):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    student = models.ForeignKey(Student, related_name='courses', on_delete=models.CASCADE)
-    courses = models.ForeignKey(Course, related_name='students', on_delete=models.CASCADE)
-
-    def _str_(self):
-        return f"Course {self.student.name} - {self.courses.name}"
-
 
 
 class Attendance(GenericModel):

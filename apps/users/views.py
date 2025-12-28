@@ -511,14 +511,13 @@ def course_mark_attendance_api(request, course_id):
 def start_attendance_api(request):
     if request.method == 'POST':
         class_id = request.data.get('class', None)
-        # import pdb; pdb.set_trace()
         if class_id:
             class_obj = Class.objects.filter(id=class_id).first()
             lecture = Lecture.objects.create(class_ref=class_obj)
             return Response({
                 'id': lecture.id,
                 'start_time': lecture.start_time.isoformat() if lecture.start_time else None,
-                'end_time': lecture.end_time.isoformat() if lecture.end_time else None,
+                'end_time': None,
                 'class_ref': {'id': lecture.class_ref.id, 'name': lecture.class_ref.name}
             }, status=status.HTTP_200_OK)
         return Response({'msg': 'Class ID is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -557,3 +556,56 @@ def stop_attendance_api(request, lecture_id):
     except Exception as e:
         print(e)
         return Response({'msg': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher])
+def lecture_api(request):
+    user = request.user
+    if request.method == 'GET':
+        data = []
+        lectures = Lecture.objects.all().order_by('-created_at')
+        if user.is_teacher:
+            lectures = lectures.filter(class_ref__instructor__user_ptr_id=user.id)
+        for lecture in lectures:
+            data.append({
+                'id': lecture.id,
+                'class_ref': {
+                    'id': lecture.class_ref.id,
+                    'name': lecture.class_ref.name
+                },
+                'start_time': lecture.start_time,
+                'end_time': lecture.end_time
+            })
+        return Response(data, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher])
+def get_attendance_details_by_lecture(request, lecture_id):
+    if request.method == 'GET':
+        lecture = get_object_or_404(Lecture, id=lecture_id)
+
+        attendance_records = Attendance.objects.filter(lecture=lecture)
+
+        data = []
+        for record in attendance_records:
+            data.append({
+                'id': record.id,
+                'student': {
+                    'id': record.student.id,
+                    'first_name': record.student.first_name,
+                    'last_name': record.student.last_name,
+                },
+                'status': record.status,
+                'timestamp': record.timestamp,
+                'marked_by': {
+                    'id': record.marked_by.id,
+                    'first_name': record.marked_by.first_name,
+                    'last_name': record.marked_by.last_name,
+                } if record.marked_by else None
+            })
+
+        return Response(data, status=status.HTTP_200_OK)

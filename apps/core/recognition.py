@@ -8,16 +8,13 @@ from django.core.files.base import ContentFile
 
 
 def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, threshold=0.50):
-    # Fetch snapshots
     if lecture is None:
         snapshots_queryset = Snapshot.objects.all()
     else:
         snapshots_queryset = Snapshot.objects.filter(lecture=lecture)
 
-    # Active students
     students = Student.objects.filter(enrollment_status='active')
 
-    # Store embeddings with Student instance as key
     student_embeddings = {
         student: np.array(student.face_embeddings)
         for student in students if student.face_embeddings
@@ -31,21 +28,17 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
             "processed_snapshots": []
         }
 
-    # Initialize InsightFace
     app = FaceAnalysis(allowed_modules=['detection', 'recognition'])
     app.prepare(ctx_id=-1, det_size=(640, 640))
 
-    # Create output folder if needed
     if output_folder:
         os.makedirs(output_folder, exist_ok=True)
 
-    # Attendance dictionary now holds Student objects
     attendance = {student: 0 for student in student_embeddings.keys()}
 
     total_snapshots = 0
     processed_snapshots = []
 
-    # Process each snapshot
     for snapshot in snapshots_queryset:
         img_path = snapshot.image.path
         img = cv2.imread(img_path)
@@ -64,7 +57,6 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
             best_match = None
             best_score = -1
 
-            # Compare with stored student embeddings
             for student, student_embedding in student_embeddings.items():
                 score = cosine_similarity(
                     embedding,
@@ -75,7 +67,6 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
                     best_score = score
                     best_match = student
 
-            # Bounding box
             x1, y1, x2, y2 = face.bbox.astype(int)
 
             # Match decision
@@ -106,7 +97,6 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
                 2
             )
 
-        # Save processed image to Snapshot.processed_image
         _, buffer = cv2.imencode(".jpg", img)
         processed_bytes = buffer.tobytes()
 
@@ -116,14 +106,13 @@ def recognize_attendance_from_snapshots_model(lecture=None, output_folder=None, 
             save=True
         )
 
-    # Calculate presence percentages
     percentage_presence = {
         student: (count / total_snapshots * 100) if total_snapshots > 0 else 0
         for student, count in attendance.items()
     }
 
     return {
-        "attendance": attendance,   # keys = Student instances
+        "attendance": attendance,
         "total_snapshots": total_snapshots,
         "percentage_presence": percentage_presence,
         "processed_snapshots": processed_snapshots
