@@ -31,17 +31,22 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-u2zz+&d%v-vqytdv2hthycim$o
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '*.onrender.com']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '*.railway.app', '*.up.railway.app']
 if not DEBUG:
     ALLOWED_HOSTS.append('*')
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_ALL_ORIGINS = True
 
+# Railway-specific settings
+PORT = os.getenv('PORT', 8000)
+
+# Static files configuration for Railway
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
 
 # Use WhiteNoise for serving static files
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # Application definition
@@ -115,7 +120,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv("DATABASE_URL"),
         conn_max_age=600,
-        conn_health_checks=True,
+        ssl_require=True
     )
 }
 
