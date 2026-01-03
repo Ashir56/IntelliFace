@@ -1,1 +1,1 @@
-web: gunicorn Intelliface.wsgi
+web: gunicorn IntelliFace.wsgi
