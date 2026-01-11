@@ -1,13 +1,23 @@
 import cv2
 import numpy as np
-from insightface.app import FaceAnalysis
-from sklearn.metrics.pairwise import cosine_similarity
-from apps.users.models import Student, Snapshot, Attendance, Course
-import os
 import json
+import os
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from apps.users.models import Student, Snapshot, Attendance, Course
 from .enhancement import enhance_image
+
+# Try to import ML dependencies with proper error handling
+try:
+    from insightface.app import FaceAnalysis
+    from sklearn.metrics.pairwise import cosine_similarity
+    ML_AVAILABLE = True
+    print("[INFO] ML dependencies for recognition loaded successfully")
+except ImportError as e:
+    print(f"[ERROR] Failed to import ML dependencies for recognition: {e}")
+    ML_AVAILABLE = False
+    FaceAnalysis = None
+    cosine_similarity = None
 
 
 def save_processed_snapshot(snapshot, image, faces, detections, output_dir="processed_snapshots"):
@@ -41,16 +51,27 @@ def save_processed_snapshot(snapshot, image, faces, detections, output_dir="proc
 
 
 def recognize_attendance_from_snapshots_model(lecture=None, course_id=None,user=None, output_folder=None, threshold=0.50):
+    """
+    Process snapshots from a lecture to automatically mark attendance using face recognition
+    """
     try:
         if not lecture:
             return {
                 "success": False,
                 "message": "No lecture provided"
             }
+        
+        if not ML_AVAILABLE:
+            return {
+                "success": False,
+                "message": "ML features not available - InsightFace/ONNX Runtime not working"
+            }
 
         # Initialize face analysis app
+        print("[INFO] Initializing FaceAnalysis for recognition...")
         app = FaceAnalysis(providers=['CPUExecutionProvider'])
         app.prepare(ctx_id=0, det_size=(640, 640))
+        print("[INFO] FaceAnalysis initialized successfully for recognition")
 
         # Get all students enrolled in the course
         # enrolled_students = Student.objects.filter().exclude(face_embeddings__isnull=True).exclude(face_embeddings='')

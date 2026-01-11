@@ -24,7 +24,15 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     wget \
     pkg-config \
+    libgfortran5 \
     && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables for ONNX Runtime
+ENV OMP_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV VECLIB_MAXIMUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -49,6 +57,8 @@ echo "📊 Collecting static files..."\n\
 python manage.py collectstatic --noinput\n\
 echo "🗄️ Running migrations..."\n\
 python manage.py migrate --noinput || echo "⚠️ Migration failed, continuing..."\n\
+echo "🧪 Testing ML features..."\n\
+python -c "import onnxruntime; print(f\"ONNX Runtime version: {onnxruntime.__version__}\")" || echo "⚠️ ONNX Runtime test failed"\n\
 echo "🌐 Starting Gunicorn..."\n\
 exec gunicorn IntelliFace.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120\n' > /app/start.sh && chmod +x /app/start.sh
 
