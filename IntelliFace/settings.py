@@ -152,7 +152,12 @@ AUTH_USER_MODEL = 'users.User'
 
 STATIC_URL = 'static/'
 
-TEACHER_URL = 'localhost:3000'
+# Media files configuration for image uploads
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -219,17 +224,5 @@ EMAIL_HOST_USER = 'ashir.rasheedx@gmail.com'
 EMAIL_HOST_PASSWORD = 'unlk hyyp xetw ynlt'
 CONTACT_EMAIL = EMAIL_HOST_USER
 
-
-# Celery configuration
-CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-
-CELERY_BEAT_SCHEDULE = {
-    "take_snapshots_every_5_minutes": {
-        "task": "apps.core.tasks.capture_snapshots_for_active_lectures",
-        "schedule": 300,
-    }
-}
+TEACHER_URL = os.getenv('TEACHER_URL', 'http://localhost:3000')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:8000')

@@ -1,5 +1,6 @@
 from datetime import datetime
 from django.utils import timezone
+import os
 
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
@@ -16,9 +17,10 @@ from rest_framework_simplejwt.tokens import AccessToken
 from .permissions import IsTeacher
 from ..core.embedding import student_picture_embedding
 
-from .helpers import send_email_confirm_account
-from .serializers import CourseSerializer, MyTokenRefreshSerializer, MyTokenObtainPairSerializer, StudentImageSerializer, TeacherSerializer, StudentSerializer, \
-    ClassSerializer
+from .helpers import send_email_confirm_account, send_teacher_setup_email
+from .serializers import CourseSerializer, MyTokenRefreshSerializer, MyTokenObtainPairSerializer, \
+    StudentImageSerializer, TeacherSerializer, StudentSerializer, \
+    ClassSerializer, SetPasswordSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import Course, StudentImage, User, Teacher, Student, Class, Lecture, Attendance, StudentCourses
 from apps.core.paginations import paginated_queryset_response
@@ -142,7 +144,7 @@ def teacher_api(request):
         #
         # serializer.save()
 
-        # send_email_confirm_account(serializer.instance, 'TEACHER')
+        send_teacher_setup_email(serializer.instance)
 
         return Response({'msg': 'Teacher created successfully'}, status=status.HTTP_201_CREATED)
 
@@ -281,9 +283,16 @@ def student_api(request):
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAdminUser])
+@transaction.atomic()
 def upload_student_image(request, student_id):
     student = get_object_or_404(Student, id=student_id)
     files = request.FILES.getlist('images')
+    if student.face_embeddings:
+        student.face_embeddings = []
+        student.save()
+
+    StudentImage.objects.filter(student=student).delete()
+
 
     if not files:
         return Response({'msg': 'No images uploaded'}, status=status.HTTP_400_BAD_REQUEST)
@@ -434,7 +443,6 @@ def course_api(request):
 
     if request.method == 'GET':
         data = []
-        # import pdb; pdb.set_trace()
         courses = Course.objects.all().order_by('-created_at')
         if user.is_teacher:
             courses = courses.filter(instructor__user_ptr_id=user.id)
@@ -548,43 +556,35 @@ def stop_attendance_api(request, lecture_id):
         lecture = get_object_or_404(Lecture, id=lecture_id)
         if request.method == 'POST':
             lecture.end_time = timezone.now()
+            course_id = request.data.get('course', None)
+            if course_id is None:
+                return Response({'msg': 'Course ID is required'}, status=status.HTTP_400_BAD_REQUEST)
             lecture.save()
-            data=request.data.copy()
-            course_id = data.get('course', None)
-            course = None
-            if course_id:
-                course = get_object_or_404(Course, id=course_id)
-            result = recognize_attendance_from_snapshots_model(lecture)
-            attendance_dict = result["attendance"]
-            percentage_dict = result["percentage_presence"]
-
-            for student, count in attendance_dict.items():
-                present_percentage = percentage_dict[student]
-                attendance_status = 'present' if present_percentage > 50 else 'absent'
-                Attendance.objects.create(
-                    student=student,
-                    lecture=lecture,
-                    marked_by=request.user.teacher if request.user else None,
-                    course=course,
-                    status=attendance_status,
-                )
-            return Response({'msg': 'Attendance has been marked'}, status=status.HTTP_200_OK)
+            result = recognize_attendance_from_snapshots_model(lecture, course_id, request.user)
+            
+            return Response({
+                'msg': 'Lecture ended successfully',
+                'lecture_id': lecture_id,
+                'end_time': lecture.end_time,
+                'note': 'Use /api/lecture/{id}/process-recognition/ to process attendance'
+            }, status=status.HTTP_200_OK)
+                
     except Exception as e:
-        print(e)
+        print(f"[ERROR] Stop attendance failed: {str(e)}")
         return Response({'msg': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
-@permission_classes([IsTeacher])
+@permission_classes([IsTeacher | IsAdminUser])
 def lecture_api(request):
     user = request.user
     if request.method == 'GET':
         data = []
         lectures = Lecture.objects.all().order_by('-created_at')
         if user.is_teacher:
-            lectures = lectures.filter(class_ref__instructor__user_ptr_id=user.id)
+            lectures = lectures.filter(attendances__course__instructor=user)
         for lecture in lectures:
             data.append({
                 'id': lecture.id,
@@ -596,6 +596,24 @@ def lecture_api(request):
                 'end_time': lecture.end_time
             })
         return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher | IsAdminUser])
+def get_lecture_by_id(request, lecture_id):
+    lecture = get_object_or_404(Lecture, id=lecture_id)
+    data = {
+        'id': lecture.id,
+        'class_ref': {
+            'id': lecture.class_ref.id,
+            'name': lecture.class_ref.name
+        },
+        'attendance': lecture.attendances,
+        'start_time': lecture.start_time,
+        'end_time': lecture.end_time
+    }
+    return Response(data, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
@@ -625,3 +643,156 @@ def get_attendance_details_by_lecture(request, lecture_id):
             })
 
         return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsTeacher])
+def process_lecture_recognition(request, lecture_id):
+    try:
+        lecture = get_object_or_404(Lecture, id=lecture_id)
+        
+        if hasattr(request.user, 'teacher'):
+            if lecture.course.instructor != request.user.teacher:
+                return Response({
+                    'error': 'You do not have permission to process this lecture'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
+        result = recognize_attendance_from_snapshots_model(lecture)
+        
+        if result.get('success'):
+            return Response({
+                'success': True,
+                'message': 'Face recognition processing completed successfully',
+                'results': {
+                    'total_students': result.get('total_students', 0),
+                    'present_students': result.get('present_students', 0),
+                    'attendance_percentage': result.get('attendance_percentage', 0),
+                    'snapshots_processed': result.get('total_snapshots', 0),
+                    'threshold_used': result.get('threshold_used', 0.5)
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'error': result.get('message', 'Face recognition processing failed')
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        print(f"[ERROR] Manual recognition processing failed: {str(e)}")
+        return Response({
+            'success': False,
+            'error': 'An error occurred during processing'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def ml_status(request):
+    """
+    Check the status of ML features and dependencies
+    """
+    try:
+        # Test imports
+        import cv2
+        import numpy as np
+        from insightface.app import FaceAnalysis
+        from sklearn.metrics.pairwise import cosine_similarity
+        
+        # Test face analysis initialization
+        app = FaceAnalysis(providers=['CPUExecutionProvider'])
+        
+        return Response({
+            'ml_enabled': True,
+            'opencv_version': cv2.__version__,
+            'numpy_version': np.__version__,
+            'insightface_available': True,
+            'sklearn_available': True,
+            'message': 'All ML dependencies are working correctly'
+        }, status=status.HTTP_200_OK)
+        
+    except ImportError as e:
+        return Response({
+            'ml_enabled': False,
+            'error': f'Missing dependency: {str(e)}',
+            'message': 'ML features are not available due to missing dependencies'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'ml_enabled': False,
+            'error': str(e),
+            'message': 'ML features encountered an error during initialization'
+        }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([])
+def set_password_api(request):
+    serializer = SetPasswordSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        password = serializer.validated_data['password']
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+        return Response({'msg': 'Password has been set successfully'}, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_count(request):
+    user_count = User.objects.count()
+    teacher_count = Teacher.objects.count()
+    student_count = Student.objects.count()
+    class_count = Class.objects.count()
+    course_count = Course.objects.count()
+    lecture_count = Lecture.objects.count()
+
+    return Response({
+        'user_count': user_count,
+        'teacher_count': teacher_count,
+        'student_count': student_count,
+        'class_count': class_count,
+        'course_count': course_count,
+        'lecture_count': lecture_count
+    }, status=status.HTTP_200_OK)
+
+@api_view(['POST', 'GET'])
+def cron_capture_snapshots(request):
+    """
+    HTTP endpoint for external cron services to trigger snapshot capture
+    Uses the existing capture_snapshots_for_active_lectures() function
+    """
+    # Optional: Add a secret key for security
+    secret_key = request.headers.get('X-Cron-Secret') or request.GET.get('secret')
+    expected_secret = os.getenv('CRON_SECRET_KEY', 'your-secret-key-here')
+    
+    if secret_key != expected_secret:
+        return Response({
+            'error': 'Invalid or missing secret key'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        # Import and call the existing task function
+        from apps.core.tasks import capture_snapshots_for_active_lectures
+        
+        result = capture_snapshots_for_active_lectures()
+        
+        return Response({
+            'success': True,
+            'message': result['message'],
+            'processed_lectures': result['processed_lectures'],
+            'results': result['results'],
+            'timestamp': timezone.now()
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'timestamp': timezone.now()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

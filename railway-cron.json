@@ -7,5 +7,9 @@
     "numReplicas": 1,
     "sleepApplication": false,
     "restartPolicyType": "ON_FAILURE"
+  },
+  "cron": {
+    "schedule": "*/5 * * * *",
+    "command": "python manage.py capture_snapshots --verbose"
   }
 }

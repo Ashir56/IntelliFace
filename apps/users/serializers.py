@@ -1,8 +1,10 @@
-from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Course, StudentImage, User, Camera, Class, StudentCourses
+from .models import Course, StudentImage, User, Camera, Class
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import serializers
@@ -304,3 +306,27 @@ class CourseSerializer(serializers.ModelSerializer):
         instance.prereq = validated_data.get('prereq', instance.prereq)
         instance.save()
         return instance
+
+
+class SetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        try:
+            uid = force_str(urlsafe_base64_decode(data.get('uid')))
+            user = User.objects.get(pk=uid)
+        except Exception:
+            raise serializers.ValidationError({'uid': 'Invalid uid'})
+
+        token = data.get('token')
+        token_generator = PasswordResetTokenGenerator()
+        if not token_generator.check_token(user, token):
+            raise serializers.ValidationError({'token': 'Invalid or expired token'})
+
+        # validate password using Django validators
+        validate_password(data.get('password'), user=user)
+
+        data['user'] = user
+        return data

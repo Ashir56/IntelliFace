@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
+from django.conf import settings
+from django.conf.urls.static import static
 
 def health_check(request):
     return JsonResponse({
@@ -34,7 +36,7 @@ def health_check(request):
             "classes": "/api/class",
             "lectures": "/api/lecture"
         },
-        "note": "ML features temporarily disabled for deployment"
+        "note": "ML features now enabled with face recognition capabilities"
     })
 
 urlpatterns = [
@@ -43,3 +45,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('apps.users.urls', namespace='users')),
 ]
+
+# Serve media files during development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
