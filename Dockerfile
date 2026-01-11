@@ -9,7 +9,7 @@ ENV PORT=8000
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for ML and OpenCV
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     build-essential \
@@ -18,11 +18,12 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    libfontconfig1 \
     libglib2.0-0 \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+    libxrender1 \
     libgomp1 \
     wget \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -35,8 +36,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy project
 COPY . .
 
-# Create staticfiles directory
-RUN mkdir -p staticfiles
+# Create staticfiles and media directories
+RUN mkdir -p staticfiles media
 
 # Expose port
 EXPOSE $PORT
